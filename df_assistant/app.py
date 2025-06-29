@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import json
 
 from filter_engine import apply_standard_filters, apply_custom_filter
 from template_engine import render_template
@@ -10,19 +11,28 @@ from template_manager import (
 )
 from rag_module import get_rag_answer
 from evaluation import similarity
-from test_manager import add_test
+from test_manager import (
+    add_test,
+    load_tests,
+    update_test,
+    delete_test,
+    duplicate_test,
+)
 
 
 def main():
     st.title("Dynamic DataFrame Query Assistant")
 
-    uploaded = st.file_uploader("Upload CSV or Excel")
-    if uploaded:
-        if uploaded.name.endswith(".csv"):
-            df = pd.read_csv(uploaded)
-        else:
-            df = pd.read_excel(uploaded)
-        st.write("Data Loaded", df.head())
+    tabs = st.tabs(["Query", "Test Cases"])
+
+    with tabs[0]:
+        uploaded = st.file_uploader("Upload CSV or Excel")
+        if uploaded:
+            if uploaded.name.endswith(".csv"):
+                df = pd.read_csv(uploaded)
+            else:
+                df = pd.read_excel(uploaded)
+            st.write("Data Loaded", df.head())
 
         filters = {}
         for col in df.columns:
@@ -99,8 +109,52 @@ def main():
             st.write(f"Similarity: {score:.2f}")
 
             if st.button("Save as Test Case"):
-                add_test({"question": question, "filters": filters, "template": template, "expected": answer})
+                add_test({
+                    "question": question,
+                    "filters": filters,
+                    "custom_code": st.session_state.get("custom_func", ""),
+                    "template": template,
+                    "expected": answer,
+                })
                 st.success("Test case saved")
+
+    with tabs[1]:
+        st.subheader("Saved Test Cases")
+        tests = load_tests()
+        for i, test in enumerate(tests):
+            with st.expander(f"Test {i+1}: {test.get('question', '')}"):
+                q = st.text_input("Question", test.get("question", ""), key=f"q_{i}")
+                filters_text = st.text_area(
+                    "Filters (JSON)",
+                    json.dumps(test.get("filters", {}), indent=2),
+                    key=f"f_{i}",
+                )
+                code = st.text_area(
+                    "Custom Code",
+                    test.get("custom_code", ""),
+                    key=f"c_{i}",
+                )
+                tmpl = st.text_area("Template", test.get("template", ""), key=f"t_{i}")
+                expected = st.text_area("Expected", test.get("expected", ""), key=f"e_{i}")
+                col_u, col_d, col_dup = st.columns(3)
+                if col_u.button("Update", key=f"update_{i}"):
+                    update_test(
+                        i,
+                        {
+                            "question": q,
+                            "filters": json.loads(filters_text or "{}"),
+                            "custom_code": code,
+                            "template": tmpl,
+                            "expected": expected,
+                        },
+                    )
+                    st.experimental_rerun()
+                if col_d.button("Delete", key=f"delete_{i}"):
+                    delete_test(i)
+                    st.experimental_rerun()
+                if col_dup.button("Duplicate", key=f"dup_{i}"):
+                    duplicate_test(i)
+                    st.experimental_rerun()
 
 
 if __name__ == "__main__":

@@ -21,3 +21,24 @@ def add_test(test: Dict[str, Any]):
     tests = load_tests()
     tests.append(test)
     save_tests(tests)
+
+
+def update_test(index: int, test: Dict[str, Any]):
+    tests = load_tests()
+    if 0 <= index < len(tests):
+        tests[index] = test
+        save_tests(tests)
+
+
+def delete_test(index: int):
+    tests = load_tests()
+    if 0 <= index < len(tests):
+        tests.pop(index)
+        save_tests(tests)
+
+
+def duplicate_test(index: int):
+    tests = load_tests()
+    if 0 <= index < len(tests):
+        tests.append(tests[index].copy())
+        save_tests(tests)
